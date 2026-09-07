@@ -6,6 +6,10 @@ defaults:
 datastatics_path: ${oc.env:PROJECT_ROOT}/data/stats/libero_local_stats.json
 model:
   pretrained_ckpt: checkpoints/g05-base/checkpoints/model_state_dict.pt
+  model_arch:
+    vision:
+      temporal_freq: 4
 tokenizer:
   vq_config:
     ckpt_dir: checkpoints/action_tokenizer.pt
+    block_size: 8

@@ -27,4 +27,6 @@ for path in cfg.data.embodiment_datasets.libero.dataset_groups[0].dataset_dirs:
     assert (Path(path) / 'meta/info.json').is_file(), path
 print('Local Hydra config, data paths, Python and shell syntax PASS')
 PY
-python -m pytest -q tests/test_serve_policy_dynamic_batching.py
+mkdir -p "$G05_OUTPUT_DIR/tests"
+python -m pytest -q --basetemp="$G05_OUTPUT_DIR/tests/validate-$SLURM_JOB_ID" \
+    tests/test_serve_policy_dynamic_batching.py tests/test_ranged_download.py

@@ -35,6 +35,7 @@ source scripts/cluster/env.sh
 - 数据为 LeRobot v2.1、双相机 512×512，直接使用代码已有的 v2.1 读取器。
 - 四个 suite 共 1,712 episodes / 277,713 frames；这份经过筛选的数据适合流水线验证，不能直接宣称与论文每任务 50 demonstrations 完全相同。
 - `configs/task/libero_local.yaml` 对齐 base 权重的 AR / 27D 配置；`configs/data/libero_local.yaml` 通过 `LIBERO_DATA_ROOT` 引用现有数据。
+- Local task 另外对齐发布 base 配置的 `tokenizer.vq_config.block_size=8` 与 `vision.temporal_freq=4`；单帧输入仍由模型的单帧分支处理。
 - 修复标准 LIBERO NumPy 初始状态与 PyTorch 2.6+ 的加载兼容；robosuite 私有配置关闭 `/tmp` 文件日志，输出由 Slurm 收集。
 - 修复预先分词的变长请求在推理批处理中未 padding 的问题，使用仓库已有的批处理一致性测试验证。
 - 通用 `env.sh` 默认 `MUJOCO_GL=osmesa`，供 CPU 诊断使用。GPU 评测 / smoke 脚本启用已验证的 EGL：`graphics.sh` 复用用户已有的 NVIDIA 580.178.04 图形库并检查内核驱动版本。最初作业 3494 因节点未配置 NVIDIA EGL vendor 失败，随后用正确的用户态库解决。
