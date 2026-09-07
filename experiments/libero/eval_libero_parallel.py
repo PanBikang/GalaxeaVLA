@@ -48,6 +48,12 @@ def _json_default(obj: Any):
     return str(obj)
 
 
+def _resolve_num_parallel(num_parallel: int, num_trials: int) -> int:
+    if num_parallel < 1 or num_trials < 1:
+        raise ValueError('num_parallel and num_trials_per_task must both be positive')
+    return min(num_parallel, num_trials)
+
+
 def _cfg_get(cfg, path: str, default=None):
     if cfg is None:
         return default
@@ -467,6 +473,9 @@ async def run_parallel_task(
 
 
 async def evaluate(args, cfg, embodiment_type: str | None) -> dict[str, Any]:
+    # Never allocate trials beyond the requested budget. With fewer trials than
+    # workers, the old loop would select whichever extra episodes finished first.
+    args.num_parallel = _resolve_num_parallel(args.num_parallel, args.num_trials_per_task)
     ensure_libero_import()
     ensure_libero_config()
     from libero.libero import benchmark

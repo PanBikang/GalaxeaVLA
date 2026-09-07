@@ -655,7 +655,7 @@ def init_experiment_tracker(cfg: DictConfig, accelerator: Accelerator, output_di
     Returns:
         tracker_type: Type of tracker initialized ('swanlab', 'wandb', or 'none')
     """
-    tracker_type = cfg.logger.type.lower()
+    tracker_type = (cfg.logger.type or "none").lower()
 
     if tracker_type == "none":
         logger.info("Logger disabled (type=none)")
@@ -693,9 +693,6 @@ def init_experiment_tracker(cfg: DictConfig, accelerator: Accelerator, output_di
         # For wandb, workspace field is entity
         if cfg.logger.workspace:
             init_kwargs["wandb"]["entity"] = cfg.logger.workspace
-    elif tracker_type is None:
-        logger.info("Logger disabled (type=none)")
-        return tracker_type
     else:
         raise ValueError(
             f"Unsupported logger type: {tracker_type}. Choose 'swanlab', 'wandb', or 'none'."

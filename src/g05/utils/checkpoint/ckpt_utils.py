@@ -101,7 +101,11 @@ def _apply_action_tokenizer_sidecar(cfg: DictConfig, run_dir: Path) -> bool:
         "model.model_arch.AT_CONFIG.ckpt_dir",
     ):
         if OmegaConf.select(cfg, key) is not None:
-            OmegaConf.update(cfg, key, str(local_at), merge=False)
+            # Updating a dotted path through an interpolation with OmegaConf.update
+            # can replace the alias with a partial dict, dropping `_target_`.
+            parent_path, field = key.rsplit(".", 1)
+            parent = OmegaConf.select(cfg, parent_path)
+            parent[field] = str(local_at)
             patched = True
     if patched:
         logger.info(f"Auto-resolved action_tokenizer → {local_at}")

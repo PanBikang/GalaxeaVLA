@@ -15,9 +15,9 @@ source scripts/cluster/env.sh
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 suites=(libero_spatial libero_object libero_goal libero_10)
-suite="${suites[${SLURM_ARRAY_TASK_ID:-0}]}"
+suite="${G05_EVAL_SUITE:-${suites[${SLURM_ARRAY_TASK_ID:-${SLURM_PROCID:-0}}]}}"
 trials="${1:-50}"
-run_id="${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID}"
+run_id="${G05_EVAL_RUN_ID:-${SLURM_ARRAY_JOB_ID:-$SLURM_JOB_ID}}"
 port=$((20000 + SLURM_JOB_ID % 30000))
 bash scripts/run/eval_libero.sh checkpoints/g05-libero/model.pt \
     --suites "$suite" --num_trials "$trials" --num_parallel 10 \

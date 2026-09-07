@@ -29,4 +29,6 @@ print('Local Hydra config, data paths, Python and shell syntax PASS')
 PY
 mkdir -p "$G05_OUTPUT_DIR/tests"
 python -m pytest -q --basetemp="$G05_OUTPUT_DIR/tests/validate-$SLURM_JOB_ID" \
-    tests/test_serve_policy_dynamic_batching.py tests/test_ranged_download.py
+    tests/test_serve_policy_dynamic_batching.py tests/test_ranged_download.py \
+    tests/test_libero_trial_budget.py tests/test_disabled_tracker.py \
+    tests/test_checkpoint_tokenizer_alias.py

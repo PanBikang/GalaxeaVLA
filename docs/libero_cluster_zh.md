@@ -78,8 +78,11 @@ sbatch --parsable scripts/cluster/assets.sbatch
 sbatch --parsable scripts/cluster/train_smoke.sbatch
 # 官方发布权重的少量 rollout；先检查服务端和仿真通信：
 sbatch --parsable scripts/cluster/eval.sbatch 1
-# smoke 通过且额度允许时，四个 suite 并行，每任务 50 次：
-sbatch --parsable --array=0-3%4 scripts/cluster/eval.sbatch 50
+# smoke 通过且额度允许时，每节点一个 suite，跨分区并行（先核对节点空余 GPU）：
+sbatch --parsable --partition=h20 --nodelist=zp-nc06 --export=ALL,G05_EVAL_SUITE=libero_spatial,G05_EVAL_RUN_ID=official_repro scripts/cluster/eval.sbatch 50
+sbatch --parsable --partition=h20 --nodelist=zp-nc12 --export=ALL,G05_EVAL_SUITE=libero_object,G05_EVAL_RUN_ID=official_repro scripts/cluster/eval.sbatch 50
+sbatch --parsable --partition=h200 --nodelist=zp-nc69 --export=ALL,G05_EVAL_SUITE=libero_goal,G05_EVAL_RUN_ID=official_repro scripts/cluster/eval.sbatch 50
+sbatch --parsable --partition=h200 --nodelist=zp-nc118 --export=ALL,G05_EVAL_SUITE=libero_10,G05_EVAL_RUN_ID=official_repro scripts/cluster/eval.sbatch 50
 ```
 
 `assets.sbatch` 下载全部五个模型及公共 sidecar，固定并记录 HF revision。
@@ -97,8 +100,11 @@ sbatch --parsable --array=0-3%4 scripts/cluster/eval.sbatch 50
 下载脚本使用四个已验证可联网的 CPU 节点并行处理五个模型，每个文件进行 HTTP 分段续传和 LFS SHA-256 校验。
 `.ranges` 是保留的下载分段缓存；只有完成 SHA-256 校验后才将文件放到正式 checkpoint 路径。
 `runs/provenance/checkpoint_inventory.json` 记录文件清单；`inspect_checkpoints.sbatch` 检查各文件的张量数量、dtype 和配置，写 `checkpoint_inspection.json`。
+下载作业 **3558** 已完成，退出码 `0:0`；总计 **57,742,756,737 bytes**，全部五个模型 SHA-256 匹配。检查作业 **3545** 退出码 `0:0`，五个 bundle 均可解析，均包含 946 个 FP32 state-dict 张量（张量元素总和包含权重共享别名，不能直接当作独立参数数量）。
 `train_smoke.sbatch` 输出 `runs/libero_local/smoke_<jobid>/`，保存 `last.pt` 后加载并从真实仿真观测推理，写 `inference_check.json` 和动作数组。
 评测固定 simulator seed=7。结果分别写入 `runs/libero_reproduction/<array-jobid>/<suite>/summary.json`；汇总时必须核对四个 suite 均为 500 episodes，且所有 Slurm 作业 exit code 为 0。
+可用 `G05_EVAL_RUN_ID` 指定共同的结果目录，用 `G05_EVAL_SUITE` 指定单个 suite。不要在同一个结果目录重复提交同一 suite。
+本集群 `zp-nc17` 出现多环境 EGL 初始化时的驱动锁等待；本次将其它 suite 分散到不同节点执行，保留已有成功结果。节点空闲情况变化时，应调整上述节点列表，而不是挤到该节点重复启动。单个 Slurm 多节点作业不能把 `h20,h200` 两个分区合并为一个分区。
 `scripts/cluster/summarize_libero.py <run_dir>` 检查完整的 2,000 次结果并生成论文对照 JSON。
 另提供 `train.sbatch` 全数据训练入口，可通过 `G05_MAX_STEPS` / `G05_BATCH_SIZE` 调整训练规模；该入口尚不代表已经完成 100K-step 训练。Smoke 使用独立统计文件，避免其单 suite 统计污染全数据训练。
 
@@ -119,4 +125,8 @@ tail -n 60 runs/slurm/<对应日志>
 作业 **3539** 修复 CPU TorchCodec 依赖并通过 `uv pip check`；**3542** 实际解码四套数据双相机视频，退出码均为 `0:0`。
 作业 **3544** 使用 NVIDIA EGL 在 H20 上通过四套场景/初始状态/批处理检查，退出码 `0:0`。
 
-真实模型训练、保存后推理及 2,000 次策略 rollout 尚未执行成功；在权重可用并完成验证前，不报告复现成功率。
+真实数据训练已完成三次更新，loss 为 **4.0019 → 2.5461 → 1.7877**，首批 ActionCodec token roundtrip 为 **LOSSLESS**，base 权重加载为 **946/946，missing=0，unexpected=0**。
+训练输出：`runs/libero_local/smoke_3568/checkpoints/step_3.pt`。该组合任务初次在保存后的配置恢复阶段失败；修复 OmegaConf tokenizer 引用恢复后，作业 **3574** 使用已有权重通过推理检查，退出码 `0:0`，没有重跑已完成的训练。
+推理检查确认 vision patch 权重发生非零更新（样本最大绝对差 `2.5474466383457184e-05`），返回有限的 `[1,32,6]` 右臂动作和 `[1,32,1]` 夹爪字段。AR 结果中的 absent-group 标志仍记录在报告中；三步 smoke 不代表控制策略已收敛。
+新增修复包括 `logger.type=null` 的禁用日志器处理、tokenizer sidecar 不再破坏 OmegaConf 引用，以及并行环境数不超过请求 trial 数的计数保护。作业 **3573** 通过 13 项相关测试，退出码 `0:0`。
+官方 LIBERO smoke 作业 **3566** 为 Spatial **10/10**，退出码 `0:0`。完整评测仍在进行，已有 Spatial **494/500 = 98.8%**（作业 `3569_0`，退出码 `0:0`）；其余 suite 未完成前不报告总体复现成功率。
