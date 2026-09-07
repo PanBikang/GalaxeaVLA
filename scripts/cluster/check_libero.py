@@ -1,4 +1,4 @@
-"""Check standard LIBERO initial states, GPU rendering, and local data schema."""
+"""Check standard LIBERO initial states, rendering, and local data schema."""
 import json
 import os
 from pathlib import Path
@@ -36,7 +36,7 @@ for suite_name in ['libero_spatial', 'libero_object', 'libero_goal', 'libero_10'
     table = pq.read_table(next(root.glob('data/chunk-*/*.parquet')))
     assert np.asarray(table['action'][0].as_py()).shape == (7,)
     assert np.asarray(table['observation.state'][0].as_py()).shape == (8,)
-    record = dict(suite=suite_name, tasks=suite.n_tasks, episodes=metadata['total_episodes'],
+    record = dict(suite=suite_name, renderer=os.environ.get('MUJOCO_GL'), tasks=suite.n_tasks, episodes=metadata['total_episodes'],
                   frames=metadata['total_frames'], render='PASS', source=str(root))
     records.append(record)
     print(record, flush=True)

@@ -36,6 +36,7 @@ source scripts/cluster/env.sh
 - `configs/task/libero_local.yaml` 对齐 base 权重的 AR / 27D 配置；`configs/data/libero_local.yaml` 通过 `LIBERO_DATA_ROOT` 引用现有数据。
 - 修复标准 LIBERO NumPy 初始状态与 PyTorch 2.6+ 的加载兼容；robosuite 私有配置关闭 `/tmp` 文件日志，输出由 Slurm 收集。
 - 修复预先分词的变长请求在推理批处理中未 padding 的问题，使用仓库已有的批处理一致性测试验证。
+- 默认 `MUJOCO_GL=osmesa` 使用已验证的软件渲染，模型仍使用 CUDA。作业 3494 的 NVIDIA EGL 初始化失败（退出码 1，节点未配置可用的 NVIDIA EGL vendor），因此不默认启用 EGL；如后续改为 EGL，需重新核验图像和场景。
 
 ## 作业入口
 

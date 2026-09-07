@@ -13,6 +13,8 @@ export TOKENIZERS_PARALLELISM=false
 export HYDRA_FULL_ERROR=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
-export MUJOCO_GL="${MUJOCO_GL:-egl}"
+# Verified on this cluster; model inference still uses CUDA independently.
+# Override to egl only after validating the node's NVIDIA EGL vendor libraries.
+export MUJOCO_GL="${MUJOCO_GL:-osmesa}"
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source "$PROJECT_ROOT/.venv/bin/activate"
