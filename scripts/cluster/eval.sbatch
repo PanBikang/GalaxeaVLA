@@ -20,4 +20,5 @@ port=$((20000 + SLURM_JOB_ID % 30000))
 bash scripts/run/eval_libero.sh checkpoints/g05-libero/model.pt \
     --suites "$suite" --num_trials "$trials" --num_parallel 10 \
     --max_batch_size 10 --max_wait_ms 50 --port "$port" \
+    --seed 7 \
     --output_dir "runs/libero_reproduction/$run_id/$suite"

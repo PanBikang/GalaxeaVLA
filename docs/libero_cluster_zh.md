@@ -58,10 +58,10 @@ sbatch --parsable --partition=cpu --qos=cpu --gres=none \
   --export=ALL,MUJOCO_GL=osmesa scripts/cluster/check_libero.sbatch
 ```
 
-## 当前阻碍：官方权重访问权限
+## 官方权重与下载
 
-`OpenGalaxea/G05` 是 Hugging Face gated repository。作业 3486 下载返回 401 / GatedRepoError（退出码 1），当前默认及配置的 HF cache 均未找到登录 token。
-需由账号持有人在 https://huggingface.co/OpenGalaxea/G05 确认访问权限，然后在终端登录（不要将 token 写入仓库或聊天）：
+`OpenGalaxea/G05` 是 Hugging Face gated repository。初次下载返回 401；用户登录并取得授权后，已验证 ActionCodec 和 LIBERO 文件可访问。
+新机器需由账号持有人在 https://huggingface.co/OpenGalaxea/G05 确认访问权限，然后在终端登录（不要将 token 写入仓库或聊天）：
 
 ```bash
 HF_HOME=/public/node03/users/panbk/data/hf-cache \
@@ -80,9 +80,25 @@ sbatch --parsable scripts/cluster/eval.sbatch 1
 sbatch --parsable --array=0-3%4 scripts/cluster/eval.sbatch 50
 ```
 
-`assets.sbatch` 仅下载 base / LIBERO / 公共 sidecar，固定并记录 HF revision。
+`assets.sbatch` 下载全部五个模型及公共 sidecar，固定并记录 HF revision。
+当前 snapshot 共 29 个文件，五个模型各约 11.44 GB。配置检查如下；这不是性能测量：
+
+| 模型 | 动作维数 | 离散动作 | 连续动作 | CoT |
+| --- | ---: | --- | --- | --- |
+| base | 27 | 开 | 开 | 开 |
+| DROID | 20 | 开 | 开 | 开 |
+| LIBERO | 20 | 关 | 开 | 关 |
+| RoboTwin 2.0 | 20 | 关 | 开 | 关 |
+| SO-101 | 20 | 开 | 开 | 开 |
+
+公开 LIBERO / RoboTwin bundle 默认走连续动作头，因此其成功率复测不能当作 AR/CoT 消融实验。
+下载脚本使用四个已验证可联网的 CPU 节点并行处理五个模型，每个文件进行 HTTP 分段续传和 LFS SHA-256 校验。
+`.ranges` 是保留的下载分段缓存；只有完成 SHA-256 校验后才将文件放到正式 checkpoint 路径。
+`runs/provenance/checkpoint_inventory.json` 记录文件清单；`inspect_checkpoints.sbatch` 检查各文件的张量数量、dtype 和配置，写 `checkpoint_inspection.json`。
 `train_smoke.sbatch` 输出 `runs/libero_local/smoke_<jobid>/`，保存 `last.pt` 后加载并从真实仿真观测推理，写 `inference_check.json` 和动作数组。
-评测结果分别写入 `runs/libero_reproduction/<array-jobid>/<suite>/summary.json`；汇总时必须核对四个 suite 均为 500 episodes，且所有 Slurm 作业 exit code 为 0。
+评测固定 simulator seed=7。结果分别写入 `runs/libero_reproduction/<array-jobid>/<suite>/summary.json`；汇总时必须核对四个 suite 均为 500 episodes，且所有 Slurm 作业 exit code 为 0。
+`scripts/cluster/summarize_libero.py <run_dir>` 检查完整的 2,000 次结果并生成论文对照 JSON。
+另提供 `train.sbatch` 全数据训练入口，可通过 `G05_MAX_STEPS` / `G05_BATCH_SIZE` 调整训练规模；该入口尚不代表已经完成 100K-step 训练。Smoke 使用独立统计文件，避免其单 suite 统计污染全数据训练。
 
 ```bash
 squeue -j <jobid>
@@ -96,5 +112,7 @@ tail -n 60 runs/slurm/<对应日志>
 四套数据字段、40 个任务的初始状态数量，以及每 suite 一个场景的 OSMesa 渲染/20 步仿真已通过，结构化证据在 `runs/provenance/libero_check.json`。
 作业 3496 的仿真部分通过，但随后批处理一致性测试暴露变长 token 问题，因此该作业整体退出码为 1。
 修复后，作业 **3498**（配置、路径、语法、批处理一致性）和 **3499**（四 suite 场景、数据与批处理一致性）均完成，退出码 **`0:0`**。
+作业 **3518** 进一步在 H20 上验证实际 FA4 vision 和 FLA 算子的前向/反向，退出码 `0:0`。
+作业 **3534** 验证新增下载/训练脚本的语法、Hydra 配置及推理批处理测试，退出码 `0:0`。
 
 真实模型训练、保存后推理及 2,000 次策略 rollout 尚未执行成功；在权重可用并完成验证前，不报告复现成功率。

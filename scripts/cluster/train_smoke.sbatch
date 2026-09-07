@@ -16,5 +16,6 @@ export TRANSFORMERS_OFFLINE=1
 bash scripts/run/finetune.sh 1 libero_local --max_datasets 1 --overfit_batch 1 \
     model.batch_size=1 model.max_steps=3 model.num_workers=2 \
     model.warmup_steps=0 logger.mode=offline logger.type=null \
+    "datastatics_path=$G05_OUTPUT_DIR/libero_local/$EXP_NAME/smoke_stats.json" \
     eval_steps=100 checkpointing_steps=100
 python scripts/cluster/check_saved_inference.py "$G05_OUTPUT_DIR/libero_local/$EXP_NAME/last.pt"

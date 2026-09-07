@@ -14,6 +14,7 @@
 #   --max_batch_size N      Server max batch (default: 30)
 #   --max_wait_ms N         Server max wait ms (default: 2000)
 #   --env_resolution N      Camera resolution (default: 256)
+#   --seed N                Explicit simulator seed (optional)
 #   --ensemble              Enable temporal ensemble across overlapping predictions
 #   --save_videos           Save rollout videos
 #   --suites SUITES         Space-separated suite names (default: libero_goal libero_spatial libero_object libero_10)
@@ -37,6 +38,7 @@ NUM_STEPS_WAIT=20
 MAX_BATCH_SIZE=30
 MAX_WAIT_MS=1000
 ENV_RESOLUTION=256
+SEED=""
 ENSEMBLE=false
 SAVE_VIDEOS=false
 SUITES=(libero_goal libero_spatial libero_object libero_10)
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
         --max_batch_size) MAX_BATCH_SIZE="$2"; shift 2 ;;
         --max_wait_ms)  MAX_WAIT_MS="$2"; shift 2 ;;
         --env_resolution) ENV_RESOLUTION="$2"; shift 2 ;;
+        --seed)         SEED="$2"; shift 2 ;;
         --ensemble)     ENSEMBLE=true; shift ;;
         --save_videos)  SAVE_VIDEOS=true; shift ;;
         --suites)       read -ra SUITES <<< "$2"; shift 2 ;;
@@ -98,6 +101,7 @@ echo " Steps wait:    $NUM_STEPS_WAIT"
 echo " Max batch:     $MAX_BATCH_SIZE"
 echo " Max wait ms:   $MAX_WAIT_MS"
 echo " Env resolution: $ENV_RESOLUTION"
+echo " Seed:           ${SEED:-<client default>}"
 echo " Ensemble:      $ENSEMBLE"
 echo " Save videos:   $SAVE_VIDEOS"
 echo " Overrides:     ${OVERRIDES[*]}"
@@ -167,6 +171,10 @@ echo ""
 echo "[2/3] Launching ${#SUITES[@]} client(s) in parallel ..."
 
 declare -A CLIENT_PIDS
+CLIENT_SEED_ARGS=()
+if [[ -n "$SEED" ]]; then
+    CLIENT_SEED_ARGS=(--seed "$SEED")
+fi
 for suite in "${SUITES[@]}"; do
     SUITE_OUT="$OUTPUT_DIR/$suite"
     mkdir -p "$SUITE_OUT"
@@ -184,6 +192,7 @@ for suite in "${SUITES[@]}"; do
         --num_steps_wait "$NUM_STEPS_WAIT" \
         --num_parallel "$NUM_PARALLEL" \
         --env_resolution "$ENV_RESOLUTION" \
+        "${CLIENT_SEED_ARGS[@]}" \
         --output_dir "$SUITE_OUT" \
         $VIDEO_FLAG \
         &> "$SUITE_OUT/client.log" &
