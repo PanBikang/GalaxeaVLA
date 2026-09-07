@@ -134,6 +134,18 @@ class PolicyInferencer:
         first = batch[0]
         has_text_tokens = {"input_ids", "labels", "attention_mask"} <= set(first.keys())
         if has_text_tokens:
+            # The shared batch assembler stacks tensors; legacy processors may
+            # already emit variable-length text sequences before model.forward.
+            for key, padding_value in (
+                ("input_ids", padding_input_id), ("labels", -100), ("attention_mask", 0)
+            ):
+                padded = torch.nn.utils.rnn.pad_sequence(
+                    [sample[key] for sample in batch],
+                    batch_first=True,
+                    padding_value=padding_value,
+                )
+                for sample, value in zip(batch, padded):
+                    sample[key] = value
             return collate_fn_pad_sequences(batch, padding_input_id=padding_input_id)
 
         collated = custom_collate_fn(batch)

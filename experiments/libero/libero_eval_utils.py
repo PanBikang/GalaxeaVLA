@@ -75,6 +75,20 @@ def get_libero_env(task, resolution: int, seed: int | None):
     return env, task_description
 
 
+def load_libero_init_states(task_suite, task_id: int):
+    """Load trusted benchmark state arrays with PyTorch >=2.6.
+
+    LIBERO's official .pruned_init files contain NumPy arrays, not model weights.
+    Keep this compatibility choice local to benchmark files.
+    """
+    import torch
+    from libero.libero import get_libero_path
+
+    task = task_suite.get_task(task_id)
+    path = Path(get_libero_path('init_states')) / task.problem_folder / task.init_states_file
+    return torch.load(path, map_location='cpu', weights_only=False)
+
+
 def get_max_steps(task_suite_name: str) -> int:
     max_steps_by_suite = {
         "libero_spatial": 220,

@@ -19,6 +19,7 @@ from g05.utils.config.config_resolvers import register_default_resolvers
 from g05.utils.eval.eval_utils import filter_embodiment
 
 from experiments.libero.libero_eval_utils import (
+    load_libero_init_states,
     LIBERO_DUMMY_ACTION,
     LIBERO_ENV_RESOLUTION as DEFAULT_ENV_RESOLUTION,
     LiberoGripperCommandState,
@@ -507,7 +508,7 @@ async def evaluate(args, cfg, embodiment_type: str | None) -> dict[str, Any]:
 
         for task_id in tqdm(task_ids, desc="Tasks"):
             task = task_suite.get_task(task_id)
-            initial_states = task_suite.get_task_init_states(task_id)
+            initial_states = load_libero_init_states(task_suite, task_id)
             task_description = task.language
             if len(initial_states) < args.num_trials_per_task:
                 logger.warning(

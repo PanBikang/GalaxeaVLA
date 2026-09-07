@@ -1,0 +1,14 @@
+# Reuse the existing 512px LeRobot v2.1 release without modifying its files.
+defaults:
+  - libero
+  - _self_
+embodiment_datasets:
+  libero:
+    lerobot_ds_version: '2.1'
+    dataset_groups:
+      - weight: 1.0
+        dataset_dirs:
+          - ${oc.env:LIBERO_DATA_ROOT}/libero_10_no_noops_lerobot
+          - ${oc.env:LIBERO_DATA_ROOT}/libero_goal_no_noops_lerobot
+          - ${oc.env:LIBERO_DATA_ROOT}/libero_object_no_noops_lerobot
+          - ${oc.env:LIBERO_DATA_ROOT}/libero_spatial_no_noops_lerobot
