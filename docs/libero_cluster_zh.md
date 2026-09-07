@@ -3,21 +3,25 @@
 仓库：https://github.com/PanBikang/GalaxeaVLA 。`origin` 指向个人 fork，`upstream` 指向 OpenGalaxea。
 上游基线：`89f2322b4ad016e192437adc1a2c253b05bab246`。
 
+已完成环境配置、全部 checkpoint 下载与校验、真实数据三步微调及保存后推理，以及四套标准 LIBERO 的 2,000 次 rollout。实测 **98.7%（1,974/2,000）**，比论文报告的 **98.9%** 低 **0.2 个百分点**。
+机器可读报告见 [libero_reproduction_20260908.json](results/libero_reproduction_20260908.json)。
+
 ## 目标与证据边界
 
 论文：https://arxiv.org/html/2608.11739v1 ，§5.2.3 / Table 3。
 标准 LIBERO 四个 suite，每个 10 个任务，每任务 50 次 benchmark 初始状态 rollout，共 2,000 次。
 
-| Suite | 论文成功率 |
-| --- | ---: |
-| Spatial | 98.4% |
-| Object | 100.0% |
-| Goal | 98.6% |
-| Long (`libero_10`) | 98.6% |
-| 平均 | 98.9% |
+| Suite | 论文成功率 | 本次成功次数 | 本次成功率 |
+| --- | ---: | ---: | ---: |
+| Spatial | 98.4% | 494/500 | 98.8% |
+| Object | 100.0% | 499/500 | 99.8% |
+| Goal | 98.6% | 490/500 | 98.0% |
+| Long (`libero_10`) | 98.6% | 491/500 | 98.2% |
+| 平均 | 98.9% | 1,974/2,000 | 98.7% |
 
-本次计划先验证三步真实数据微调、保存及加载推理，再复测官方 `g05-libero`。
+本次验证了三步真实数据微调、保存及加载推理，并复测了官方 `g05-libero`。
 官方 checkpoint 评测属于发布权重的结果复测；三步训练不等于从头复现论文的 100K-step 微调。
+结果接近论文报告的 LIBERO 水平，但没有精确得到 98.9%。总体二项 Wilson 95% 区间为约 **[98.10%, 99.11%]**；这是单次评测的统计概括，不构成 AR/CoT 机制或统计等价性的证明。
 论文的 100K steps、学习率 1e-5、weight decay 1e-2 可在后续完整训练中使用，但还需核对全局 batch 和数据筛选。
 §5.7 的 AR/FM GRPO 比较需要另外的 RL 实验；本仓库未发现对应 GRPO 训练入口，不能由成功率评测推出该结论。
 
@@ -105,7 +109,7 @@ sbatch --parsable --partition=h200 --nodelist=zp-nc118 --export=ALL,G05_EVAL_SUI
 评测固定 simulator seed=7。结果分别写入 `runs/libero_reproduction/<array-jobid>/<suite>/summary.json`；汇总时必须核对四个 suite 均为 500 episodes，且所有 Slurm 作业 exit code 为 0。
 可用 `G05_EVAL_RUN_ID` 指定共同的结果目录，用 `G05_EVAL_SUITE` 指定单个 suite。不要在同一个结果目录重复提交同一 suite。
 本集群 `zp-nc17` 出现多环境 EGL 初始化时的驱动锁等待；本次将其它 suite 分散到不同节点执行，保留已有成功结果。节点空闲情况变化时，应调整上述节点列表，而不是挤到该节点重复启动。单个 Slurm 多节点作业不能把 `h20,h200` 两个分区合并为一个分区。
-`scripts/cluster/summarize_libero.py <run_dir>` 检查完整的 2,000 次结果并生成论文对照 JSON。
+`scripts/cluster/summarize_libero.py <run_dir>` 检查完整的 2,000 次结果并生成论文对照 JSON；可通过 `sbatch --parsable scripts/cluster/summarize.sbatch <run_dir>` 在 Slurm 中执行。
 另提供 `train.sbatch` 全数据训练入口，可通过 `G05_MAX_STEPS` / `G05_BATCH_SIZE` 调整训练规模；该入口尚不代表已经完成 100K-step 训练。Smoke 使用独立统计文件，避免其单 suite 统计污染全数据训练。
 
 ```bash
@@ -114,7 +118,7 @@ sacct -j <jobid> --format=JobID,State,ExitCode,Elapsed,MaxRSS
 tail -n 60 runs/slurm/<对应日志>
 ```
 
-## 已验证与未验证
+## 验证记录
 
 环境安装作业 3484、H20 CUDA 前向/反向检查 3485 均完成，退出码 `0:0`。
 四套数据字段、40 个任务的初始状态数量，以及每 suite 一个场景的 OSMesa 渲染/20 步仿真已通过，结构化证据在 `runs/provenance/libero_check.json`。
@@ -128,5 +132,16 @@ tail -n 60 runs/slurm/<对应日志>
 真实数据训练已完成三次更新，loss 为 **4.0019 → 2.5461 → 1.7877**，首批 ActionCodec token roundtrip 为 **LOSSLESS**，base 权重加载为 **946/946，missing=0，unexpected=0**。
 训练输出：`runs/libero_local/smoke_3568/checkpoints/step_3.pt`。该组合任务初次在保存后的配置恢复阶段失败；修复 OmegaConf tokenizer 引用恢复后，作业 **3574** 使用已有权重通过推理检查，退出码 `0:0`，没有重跑已完成的训练。
 推理检查确认 vision patch 权重发生非零更新（样本最大绝对差 `2.5474466383457184e-05`），返回有限的 `[1,32,6]` 右臂动作和 `[1,32,1]` 夹爪字段。AR 结果中的 absent-group 标志仍记录在报告中；三步 smoke 不代表控制策略已收敛。
-新增修复包括 `logger.type=null` 的禁用日志器处理、tokenizer sidecar 不再破坏 OmegaConf 引用，以及并行环境数不超过请求 trial 数的计数保护。作业 **3573** 通过 13 项相关测试，退出码 `0:0`。
-官方 LIBERO smoke 作业 **3566** 为 Spatial **10/10**，退出码 `0:0`。完整评测仍在进行，已有 Spatial **494/500 = 98.8%**（作业 `3569_0`，退出码 `0:0`）；其余 suite 未完成前不报告总体复现成功率。
+新增修复包括 `logger.type=null` 的禁用日志器处理、tokenizer sidecar 不再破坏 OmegaConf 引用，以及并行环境数不超过请求 trial 数的计数保护。还将 worker 异常写入共享日志，避免 BrokenPipe 清理错误覆盖原始失败。最终验证作业 **3580** 通过 **14 项**相关测试，退出码 `0:0`。
+官方 LIBERO smoke 作业 **3566** 为 Spatial **10/10**，退出码 `0:0`。
+
+完整评测目录：`runs/libero_reproduction/3569/`。各 suite 均为 10 个任务、每任务 50 次，实际完成作业如下，全部退出码 `0:0`：
+
+| Suite | 完成作业 | GPU / 节点 | 运行时间 |
+| --- | --- | --- | --- |
+| Spatial | `3569_0` | H200 / zp-nc118 | 24m47s |
+| Object | `3575` | H20 / zp-nc06 | 28m23s |
+| Goal | `3576` | H20 / zp-nc12 | 27m23s |
+| Long | `3579` | H200 / zp-nc118 | 37m25s |
+
+汇总作业 **3581** 退出码 `0:0`，输出 `runs/libero_reproduction/3569/paper_comparison.json`。初始化失败的旧日志保存在 `*_initialization_stalled` / `*_nc17_single_stalled` 目录中；最终指标只使用上述四套完整结果。

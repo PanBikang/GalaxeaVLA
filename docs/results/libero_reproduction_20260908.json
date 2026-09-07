@@ -1,0 +1,119 @@
+{
+  "suites": [
+    {
+      "suite": "libero_spatial",
+      "successes": 494,
+      "episodes": 500,
+      "success_rate_pct": 98.8,
+      "paper_pct": 98.4,
+      "difference_pp": 0.4
+    },
+    {
+      "suite": "libero_object",
+      "successes": 499,
+      "episodes": 500,
+      "success_rate_pct": 99.8,
+      "paper_pct": 100,
+      "difference_pp": -0.2
+    },
+    {
+      "suite": "libero_goal",
+      "successes": 490,
+      "episodes": 500,
+      "success_rate_pct": 98,
+      "paper_pct": 98.6,
+      "difference_pp": -0.6
+    },
+    {
+      "suite": "libero_10",
+      "successes": 491,
+      "episodes": 500,
+      "success_rate_pct": 98.2,
+      "paper_pct": 98.6,
+      "difference_pp": -0.4
+    }
+  ],
+  "successes": 1974,
+  "episodes": 2000,
+  "success_rate_pct": 98.7,
+  "paper_pct": 98.9,
+  "difference_pp": -0.2,
+  "wilson_95_pct": [
+    98.10196914827971,
+    99.11131044652626
+  ],
+  "scope": "Official released continuous-action LIBERO checkpoint; not a fresh 100K-step training or AR/CoT ablation.",
+  "provenance": {
+    "date": "2026-09-08",
+    "source": "https://arxiv.org/html/2608.11739v1",
+    "fork": "https://github.com/PanBikang/GalaxeaVLA",
+    "implementation_commit": "2ac707a",
+    "checkpoint_repository": "OpenGalaxea/G05",
+    "checkpoint_revision": "e312be81e90c56a55bcb26b57429bd39a335b449",
+    "checkpoint_file": "g05-libero/model.pt",
+    "checkpoint_sha256": "432f225c7647bdab77bfa2c2b397dc38cf8631bd70c92b85b261ff2817c1e795",
+    "libero_commit": "8f1084e3132a39270c3a13ebe37270a43ece2a01",
+    "environment": {
+      "python": "3.10.16",
+      "torch": "2.7.1+cu128",
+      "transformers": "4.57.1",
+      "torchcodec": "0.4.0 (CPU)",
+      "mujoco": "3.3.2",
+      "renderer": "NVIDIA EGL"
+    },
+    "protocol": {
+      "trials_per_task": 50,
+      "tasks_per_suite": 10,
+      "simulator_seed": 7,
+      "parallel_environments": 10,
+      "action_steps": 10,
+      "warmup_steps": 20,
+      "camera_resolution": 256,
+      "max_batch_size": 10,
+      "max_wait_ms": 50
+    },
+    "successful_jobs": {
+      "libero_spatial": "3569_0",
+      "libero_object": "3575",
+      "libero_goal": "3576",
+      "libero_10": "3579",
+      "summary": "3581"
+    },
+    "successful_job_exit_codes": "0:0",
+    "output_directory": "runs/libero_reproduction/3569",
+    "note": "The simulator seed was fixed. This is one evaluation of the released FM policy, not a controlled AR/CoT ablation or a proof of statistical equivalence."
+  },
+  "training_smoke": {
+    "steps": 3,
+    "losses": [
+      4.0019,
+      2.5461,
+      1.7877
+    ],
+    "checkpoint": "runs/libero_local/smoke_3568/checkpoints/step_3.pt",
+    "initialization_load": "946/946, missing=0, unexpected=0",
+    "token_roundtrip": "LOSSLESS",
+    "reload_job": "3574",
+    "reload_exit_code": "0:0",
+    "parameter_sample_max_abs_delta": 0.000025474466383457184,
+    "action_shapes": {
+      "right_ee_pose": [
+        1,
+        32,
+        6
+      ],
+      "right_gripper": [
+        1,
+        32,
+        1
+      ]
+    },
+    "absent_groups": [
+      "left_control",
+      "left_gripper",
+      "lower_body",
+      "right_gripper"
+    ],
+    "finite": true
+  }
+}
