@@ -9,6 +9,8 @@
 #SBATCH --output=/public/node03/users/panbk/data/GalaxeaVLA/runs/slurm/train-%j.log
 set -euo pipefail
 cd /public/node03/users/panbk/data/GalaxeaVLA
+export MUJOCO_GL=egl
+export G05_USE_NATIVE_EGL=1
 source scripts/cluster/env.sh
 export EXP_NAME="smoke_${SLURM_JOB_ID}"
 export HF_HUB_OFFLINE=1

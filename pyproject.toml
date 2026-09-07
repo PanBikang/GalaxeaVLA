@@ -169,12 +169,14 @@ exclude = ["cache"]
 index-strategy = "unsafe-best-match"
 
 [tool.uv.sources]
+torchcodec = { index = "pypi" }
 torch = [
   { index = "pytorch-cu128", marker = "sys_platform != 'darwin'"},
 ]
 
 # Override this index through UV_DEFAULT_INDEX when a mirror is required.
 [[tool.uv.index]]
+name = "pypi"
 url = "https://pypi.org/simple"
 default = true
 

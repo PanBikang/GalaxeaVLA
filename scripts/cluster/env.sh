@@ -16,5 +16,8 @@ export MKL_NUM_THREADS=1
 # Verified on this cluster; model inference still uses CUDA independently.
 # Override to egl only after validating the node's NVIDIA EGL vendor libraries.
 export MUJOCO_GL="${MUJOCO_GL:-osmesa}"
+if [[ "${G05_USE_NATIVE_EGL:-0}" == 1 ]]; then
+    source "$PROJECT_ROOT/scripts/cluster/graphics.sh"
+fi
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 source "$PROJECT_ROOT/.venv/bin/activate"

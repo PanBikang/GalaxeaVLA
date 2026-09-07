@@ -9,7 +9,7 @@
 set -euo pipefail
 cd /public/node03/users/panbk/data/GalaxeaVLA
 source scripts/cluster/env.sh
-for script in scripts/cluster/*.sbatch scripts/cluster/env.sh scripts/run/eval_libero.sh; do bash -n "$script"; done
+for script in scripts/cluster/*.sbatch scripts/cluster/*.sh scripts/run/eval_libero.sh; do bash -n "$script"; done
 python - <<'PY'
 import ast
 from pathlib import Path
