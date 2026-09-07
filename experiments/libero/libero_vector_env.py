@@ -113,7 +113,10 @@ class LiberoAsyncVectorEnv:
         self.closed = True
         for pipe in self.parent_pipes:
             if pipe is not None and not pipe.closed:
-                pipe.send(("close", None))
+                try:
+                    pipe.send(("close", None))
+                except (BrokenPipeError, EOFError, OSError):
+                    pipe.close()
         for pipe in self.parent_pipes:
             if pipe is not None and not pipe.closed:
                 try:
@@ -157,11 +160,11 @@ def _worker(index, env_fn, pipe, parent_pipe, error_queue):
     try:
         env = env_fn()
     except Exception:
-        with open(f"/tmp/libero_worker_{index}_error.log", "w") as f:
-            import traceback
+        import traceback
 
-            f.write(f"Worker {index} env creation failed:\n")
-            f.write(traceback.format_exc())
+        # stderr is captured in the suite's shared Slurm/client log.
+        print(f"Worker {index} env creation failed:", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         error_queue.put((index,) + sys.exc_info()[:2])
         pipe.send((None, False))
         return
