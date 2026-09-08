@@ -1,9 +1,11 @@
 """RoboTwin single-task evaluation entrypoint (Hydra)."""
 
 import os
+import json
 import shutil
 import subprocess
 import sys
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -29,19 +31,28 @@ def _collect_robotwin_result(
     policy_name: str,
     task_config: str,
     dest_dir: Path,
+    expected_episodes: int | None = None,
 ) -> None:
     """Find RoboTwin 2.0 result file and copy to the manager-expected location."""
     dest_filename = _PHASE_TO_RESULT_FILENAME.get(task_config)
     if dest_filename is None:
         return
-    search_dir = robotwin_root / "eval_result" / task_name / policy_name / task_config
-    if not search_dir.exists():
-        return
-    candidates = sorted(search_dir.rglob("_result.txt"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not candidates:
-        return
+    result = dest_dir / task_config / "_result.txt"
+    journal = dest_dir / task_config / "episodes.jsonl"
+    if not result.is_file() or not journal.is_file():
+        raise FileNotFoundError(f'Missing current-run result or episode journal: {result.parent}')
+    records = [json.loads(line) for line in journal.read_text().splitlines() if line.strip()]
+    if expected_episodes is not None and len(records) != expected_episodes:
+        raise ValueError(f'Expected {expected_episodes} episodes, found {len(records)}')
+    if [row['trial'] for row in records] != list(range(len(records))):
+        raise ValueError('Episode journal has missing or duplicated trial IDs')
+    if len({row['seed'] for row in records}) != len(records):
+        raise ValueError('Episode journal contains repeated seeds')
+    rate = float([line for line in result.read_text().splitlines() if line.strip()][-1])
+    if not records or abs(rate - sum(row['success'] for row in records)/len(records)) > 1e-8:
+        raise ValueError('Result file does not match episode successes')
     dest_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(str(candidates[0]), str(dest_dir / dest_filename))
+    shutil.copy2(str(result), str(dest_dir / dest_filename))
 
 
 def _resolve_path(path_str: str, *, base: Path) -> Path:
@@ -131,14 +142,65 @@ def _ensure_policy_symlink(robotwin_root: Path, policy_source_dir: Path, policy_
 
 
 def _patch_robotwin_eval_policy_source(source: str) -> str:
-    if _ROBOTWIN_TEST_NUM_PATCH in source:
+    if '# G05 audited evaluation adapter' in source:
         return source
-    if _ROBOTWIN_TEST_NUM_MARKER not in source:
+    if _ROBOTWIN_TEST_NUM_MARKER not in source and _ROBOTWIN_TEST_NUM_PATCH not in source:
         raise RuntimeError(
             "Unable to patch RoboTwin eval_policy.py for `eval_num_episodes`: "
             "expected to find `test_num = 100`. Please update the patch for this RoboTwin version."
         )
-    return source.replace(_ROBOTWIN_TEST_NUM_MARKER, _ROBOTWIN_TEST_NUM_PATCH, 1)
+    source = source.replace(_ROBOTWIN_TEST_NUM_MARKER, _ROBOTWIN_TEST_NUM_PATCH, 1)
+    replacements = {
+        '    save_dir = Path(f"eval_result/{task_name}/{policy_name}/{task_config}/{ckpt_setting}/{current_time}")':
+        '    save_dir = Path(usr_args["eval_output_dir"]) / task_config',
+        '    if args["eval_video_log"]:\n':
+        '    args["eval_video_log"] = bool(usr_args.get("save_videos", False))\n'
+        '    args["_g05_skip_obs"] = bool(usr_args.get("skip_get_obs_within_replan", False))\n'
+        '    args["_g05_episode_log"] = str(save_dir / "episodes.jsonl")\n'
+        '    protocol = {key: usr_args.get(key) for key in ("task_name", "task_config", "ckpt_setting", "seed", "instruction_type", "eval_num_episodes", "replan_steps", "num_inference_steps", "mixed_precision", "skip_get_obs_within_replan", "vision_attention_backend")}\n'
+        '    protocol_file = save_dir / "protocol.json"\n'
+        '    if protocol_file.exists() and json.loads(protocol_file.read_text()) != protocol:\n'
+        '        raise ValueError("Refusing to mix different evaluation protocols in one directory")\n'
+        '    protocol_file.write_text(json.dumps(protocol, indent=2))\n'
+        '    if args["eval_video_log"]:\n',
+        '    now_seed = st_seed\n':
+        '    now_seed = st_seed\n'
+        '    journal = Path(args["_g05_episode_log"])\n'
+        '    prior = [json.loads(line) for line in journal.read_text().splitlines() if line.strip()] if journal.exists() else []\n'
+        '    if len(prior) > test_num or [r["trial"] for r in prior] != list(range(len(prior))):\n'
+        '        raise ValueError("Invalid episode journal for resume")\n'
+        '    if prior:\n'
+        '        TASK_ENV.suc = sum(r["success"] for r in prior)\n'
+        '        TASK_ENV.test_num = now_id = succ_seed = len(prior)\n'
+        '        suc_test_seed_list = [r["seed"] for r in prior]\n'
+        '        now_seed = prior[-1]["seed"] + 1\n',
+        '            observation = TASK_ENV.get_obs()\n':
+        '            if args["_g05_skip_obs"] and hasattr(model, "should_request_observation") and not model.should_request_observation():\n'
+        '                TASK_ENV._update_render()  # preserve light/RNG and camera pose updates\n'
+        '                observation = None\n'
+        '            else:\n'
+        '                observation = TASK_ENV.get_obs()\n',
+        '        now_id += 1\n':
+        '        record = {"trial": int(TASK_ENV.test_num), "seed": int(now_seed), "success": bool(succ), "action_steps": int(TASK_ENV.take_action_cnt), "instruction": str(instruction)}\n'
+        '        with journal.open("a") as output:\n'
+        '            output.write(json.dumps(record) + "\\n")\n'
+        '            output.flush()\n'
+        '        now_id += 1\n',
+        '                print("error occurs !")\n':
+        '                traceback.print_exc()\n'
+        '                if isinstance(e, (FileNotFoundError, ImportError, AttributeError)) or "kernel" in str(e).lower() or "cuda" in str(e).lower():\n'
+        '                    raise\n'
+        '                print("error occurs !")\n',
+    }
+    for before, after in replacements.items():
+        if source.count(before) != 1:
+            raise RuntimeError(f'Unsupported RoboTwin source: expected one occurrence of {before!r}')
+        source = source.replace(before, after, 1)
+    prefix = ('# G05 audited evaluation adapter\nimport json\nimport os\nfrom pathlib import Path\n'
+              'import torch\ntorch.cuda.set_device(0)\n'
+              'import warp as wp\n'
+              'wp.config.kernel_cache_dir = str(Path(os.environ.get("PROJECT_ROOT", ".")) / ".cache" / "robotwin" / "warp" / os.environ.get("SLURM_JOB_ID", "local") / str(os.getpid()))\n')
+    return prefix + source
 
 
 def _prepare_robotwin_eval_policy_script(robotwin_root: Path) -> Path:
@@ -147,9 +209,20 @@ def _prepare_robotwin_eval_policy_script(robotwin_root: Path) -> Path:
         raise FileNotFoundError(f"RoboTwin eval_policy.py not found: {source_path}")
 
     patched_source = _patch_robotwin_eval_policy_source(source_path.read_text(encoding="utf-8"))
-    patched_path = source_path.with_name(f"_galaxeafm_eval_policy_{os.getpid()}.py")
+    patched_path = source_path.with_name(f"_galaxeafm_eval_policy_{uuid.uuid4().hex}.py")
     patched_path.write_text(patched_source, encoding="utf-8")
     return patched_path
+
+
+def _select_visible_gpu(local_index: int, visible_devices: str | None) -> str:
+    if local_index < 0:
+        raise ValueError('gpu_id must be non-negative')
+    if visible_devices is None:
+        return str(local_index)
+    devices = [value.strip() for value in visible_devices.split(',') if value.strip()]
+    if local_index >= len(devices):
+        raise ValueError(f'gpu_id={local_index} is outside the allocated visible devices')
+    return devices[local_index]
 
 
 def _format_override_value(value: Any) -> str:
@@ -227,6 +300,8 @@ def main(cfg: DictConfig):
     _append_override(overrides, "policy_name", policy_name)
     _append_override(overrides, "instruction_type", cfg.EVALUATION.instruction_type)
     _append_override(overrides, "eval_num_episodes", eval_num_episodes)
+    _append_override(overrides, "save_videos", cfg.EVALUATION.get("save_videos", False))
+    _append_override(overrides, "vision_attention_backend", cfg.EVALUATION.vision_attention_backend)
 
     _append_override(overrides, "sim_cfg_path", str(sim_cfg_path))
     _append_override(overrides, "sim_task", sim_task)
@@ -260,7 +335,7 @@ def main(cfg: DictConfig):
     ]
 
     env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = str(cfg.gpu_id)
+    env["CUDA_VISIBLE_DEVICES"] = _select_visible_gpu(int(cfg.gpu_id), env.get("CUDA_VISIBLE_DEVICES"))
     env["PYTHONUNBUFFERED"] = "1"
 
     try:
@@ -294,6 +369,7 @@ def main(cfg: DictConfig):
         policy_name=policy_name,
         task_config=str(cfg.EVALUATION.task_config),
         dest_dir=robotwin_eval_base,
+        expected_episodes=eval_num_episodes,
     )
     OmegaConf.save(
         config=cfg,

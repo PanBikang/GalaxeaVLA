@@ -16,6 +16,7 @@ dist/
 downloads/
 wandb/
 runs/
+/evaluate_results/
 eggs/
 .eggs/
 lib/
@@ -128,6 +129,8 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-robotwin/
+/third_party/
 env/
 venv/
 ENV/

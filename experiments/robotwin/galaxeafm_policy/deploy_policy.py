@@ -349,11 +349,18 @@ class GalaxeaFMRobotWinPolicy:
         checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
         if "model_state_dict" not in checkpoint:
             raise KeyError("Checkpoint missing `model_state_dict`.")
-        model = load_state_dict_safely(
+        load_info = load_state_dict_safely(
             model,
             checkpoint["model_state_dict"],
             extra_prefixes=["normalizer."],
+            return_info=True,
         )
+        model = load_info['model']
+        bad = {key: len(load_info[key]) for key in
+               ['truly_missing','partial_loaded_keys','mismatched_keys','unexpected_keys']}
+        print(f'CHECKPOINT_LOAD loaded={load_info["loaded_count"]} diagnostics={bad}', flush=True)
+        if any(bad.values()):
+            raise RuntimeError(f'Refusing partial RoboTwin checkpoint initialization: {bad}')
         del checkpoint
 
         if model_dtype in {torch.bfloat16, torch.float16}:
@@ -616,11 +623,13 @@ def get_model(usr_args: Dict[str, Any]):
     if not checkpoint_file.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     cfg = _apply_checkpoint_model_config(cfg, checkpoint_file)
+    cfg.model.model_arch.vision.attention_backend = str(
+        usr_args.get("vision_attention_backend") or cfg.EVALUATION.vision_attention_backend
+    )
 
     device = str(usr_args.get("device") or cfg.EVALUATION.device)
     if device.startswith("cuda") and not torch.cuda.is_available():
-        logger.warning("CUDA is unavailable; fallback device to cpu.")
-        device = "cpu"
+        raise RuntimeError('CUDA is unavailable; check the Slurm GPU allocation and visibility')
 
     mixed_precision = str(usr_args.get("mixed_precision") or "bf16")
     model_dtype = _mixed_precision_to_model_dtype(mixed_precision)

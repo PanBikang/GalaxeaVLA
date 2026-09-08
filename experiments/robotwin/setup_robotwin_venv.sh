@@ -48,7 +48,7 @@ else
 fi
 
 echo "Syncing project dependencies into RoboTwin virtualenv."
-UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv sync --index-strategy unsafe-best-match
+UV_PROJECT_ENVIRONMENT="${VENV_DIR}" uv sync --no-default-groups --extra robotwin --index-strategy unsafe-best-match
 
 echo "Installing RoboTwin simulator dependencies."
 uv pip install --python "${PYTHON_BIN}" "sapien==3.0.0b1" "warp-lang==0.11.0"

@@ -179,6 +179,9 @@ class Qwen3_5VisionPatchMerger(nn.Module):
 class Qwen3_5VisionAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
+        self.attention_backend = getattr(config, "attention_backend", "auto")
+        if self.attention_backend not in {"auto", "sdpa"}:
+            raise ValueError(f"Unsupported vision attention backend: {self.attention_backend}")
         self.dim = config.hidden_size
         self.num_heads = config.num_heads
         self.head_dim = self.dim // self.num_heads
@@ -209,7 +212,7 @@ class Qwen3_5VisionAttention(nn.Module):
 
         seq_length = query_states.shape[0]
 
-        if _flash_attn_varlen is not None:
+        if _flash_attn_varlen is not None and self.attention_backend != "sdpa":
             cu_seqlens_cuda = cu_seqlens.cuda() if not cu_seqlens.is_cuda else cu_seqlens
             max_seqlen = (cu_seqlens_cuda[1:] - cu_seqlens_cuda[:-1]).max().item()
             if _flash_attn_backend == "fa4":
@@ -239,12 +242,15 @@ class Qwen3_5VisionAttention(nn.Module):
             return attn_output.reshape(seq_length, -1)
         else:
             if not _VISION_FLASH_ATTN_WARNED:
-                logger.warning(
+                if self.attention_backend == "sdpa":
+                    logger.info("Vision attention uses explicitly configured PyTorch SDPA")
+                else:
+                    logger.warning(
                     "flash_attn not installed — vision attention uses SDPA fallback. "
                     "For Hopper/Blackwell GPUs (H100/B200), install FA4: "
                     "pip install flash-attn-4. For Ampere/Ada (A100/RTX4090), "
                     "install FA2: pip install flash-attn --no-build-isolation"
-                )
+                    )
                 _VISION_FLASH_ATTN_WARNED = True
 
             lengths = (cu_seqlens[1:] - cu_seqlens[:-1]).tolist()

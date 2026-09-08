@@ -14,6 +14,8 @@ EVALUATION:
   task_config: demo_randomized
   instruction_type: seen
   eval_num_episodes: 50
+  save_videos: false
+  vision_attention_backend: auto
   output_dir: ./evaluate_results/robotwin/${hydra:runtime.choices.task}/${now:%Y%m%d_%H%M%S}
 
   action_horizon: null

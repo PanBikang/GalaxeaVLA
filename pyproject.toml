@@ -77,7 +77,6 @@ dependencies = [
     # open3d's wheel metadata omits this runtime dependency on some indexes.
     "ipywidgets>=8.0.4,<9",
     "seaborn==0.13.2",
-    "sapien==2.2.2",
     "transforms3d==0.4.1",
     "trimesh==4.7.3",
     "tyro==0.9.28",
@@ -139,6 +138,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+robotwin = [
+    "setuptools<81",
+    "sapien==3.0.0b1",
+    "warp-lang==0.11.0",
+    "pybind11>=2.10",
+    "numpy-quaternion",
+    "setuptools-scm>=6.2",
+    "yourdfpy>=0.0.53",
+    "wheel",
+    "scikit-image",
+]
 dev = [
     "pytest==8.3.4",
     "ipython==8.31.0",
@@ -167,6 +177,13 @@ exclude = ["cache"]
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"
+
+[dependency-groups]
+galaxea-sim = ["sapien==2.2.2"]
+
+[tool.uv]
+default-groups = ["galaxea-sim"]
+conflicts = [[{group = "galaxea-sim"}, {extra = "robotwin"}]]
 
 [tool.uv.sources]
 torchcodec = { index = "pypi" }
